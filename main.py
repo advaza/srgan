@@ -1,17 +1,26 @@
 #! /usr/bin/python
 # -*- coding: utf8 -*-
 
-import os, time, pickle, random, time
-from datetime import datetime
-import numpy as np
-from time import localtime, strftime
-import logging, scipy
-
-import tensorflow as tf
-import tensorlayer as tl
+import os
 from model import SRGAN_g, SRGAN_d, Vgg19_simple_api
 from utils import *
-from config import config, log_config
+from config import config
+
+from cin.utils.flags import Flags
+
+args = Flags()
+
+args.add_argument('--image_path', type=str, default=None,
+                  help='Path of input low resolution image to upscale.')
+args.add_argument('--output_dir', type=str, default=None,
+                  help='Path to save evaluation results in.')
+args.add_argument('--model_checkpoint', type=str, default=None,
+                  help='Model checkpoint to be restored for evaluation.')
+args.add_argument('--basename', type=str, default='srgan',
+                  help='Basename that will be added to output image')
+args.add_argument('--mode', type=str, default='evaluate',
+                  help='Should be one of {train, evaluate}, default to evaluate.')
+
 
 ###====================== HYPER-PARAMETERS ===========================###
 ## Adam
@@ -240,33 +249,35 @@ def train():
 
 def evaluate():
     ## create folders to save result images
-    save_dir = "samples/{}".format(tl.global_flag['mode'])
-    tl.files.exists_or_mkdir(save_dir)
-    checkpoint_dir = "checkpoint"
+    output_dir = args.output_dir
+    tl.files.exists_or_mkdir(output_dir)
 
     ###====================== PRE-LOAD DATA ===========================###
     # train_hr_img_list = sorted(tl.files.load_file_list(path=config.TRAIN.hr_img_path, regx='.*.png', printable=False))
     # train_lr_img_list = sorted(tl.files.load_file_list(path=config.TRAIN.lr_img_path, regx='.*.png', printable=False))
-    valid_hr_img_list = sorted(tl.files.load_file_list(path=config.VALID.hr_img_path, regx='.*.png', printable=False))
-    valid_lr_img_list = sorted(tl.files.load_file_list(path=config.VALID.lr_img_path, regx='.*.png', printable=False))
+    # valid_hr_img_list = sorted(tl.files.load_file_list(path=config.VALID.hr_img_path, regx='.*.png', printable=False))
+    # valid_lr_img_list = sorted(tl.files.load_file_list(path=config.VALID.lr_img_path, regx='.*.png', printable=False))
 
     ## If your machine have enough memory, please pre-load the whole train set.
     # train_hr_imgs = tl.vis.read_images(train_hr_img_list, path=config.TRAIN.hr_img_path, n_threads=32)
     # for im in train_hr_imgs:
     #     print(im.shape)
-    valid_lr_imgs = tl.vis.read_images(valid_lr_img_list, path=config.VALID.lr_img_path, n_threads=32)
+    # valid_lr_imgs = tl.vis.read_images(valid_lr_img_list, path=config.VALID.lr_img_path, n_threads=32)
     # for im in valid_lr_imgs:
     #     print(im.shape)
-    valid_hr_imgs = tl.vis.read_images(valid_hr_img_list, path=config.VALID.hr_img_path, n_threads=32)
+    # valid_hr_imgs = tl.vis.read_images(valid_hr_img_list, path=config.VALID.hr_img_path, n_threads=32)
     # for im in valid_hr_imgs:
     #     print(im.shape)
     # exit()
 
     ###========================== DEFINE MODEL ============================###
     imid = 64  # 0: 企鹅  81: 蝴蝶 53: 鸟  64: 古堡
-    valid_lr_img = valid_lr_imgs[imid]
-    valid_hr_img = valid_hr_imgs[imid]
-    # valid_lr_img = get_imgs_fn('test.png', 'data2017/')  # if you want to test your own image
+    # valid_lr_img = valid_lr_imgs[imid]
+    # valid_hr_img = valid_hr_imgs[imid]
+
+    image_name = '.'.join(os.path.basename(args.image_path).split('.')[:-1])
+
+    valid_lr_img = get_imgs_fn(args.image_path)  # if you want to test your own image
     valid_lr_img = (valid_lr_img / 127.5) - 1  # rescale to ［－1, 1]
     # print(valid_lr_img.min(), valid_lr_img.max())
 
@@ -279,7 +290,7 @@ def evaluate():
     ###========================== RESTORE G =============================###
     sess = tf.Session(config=tf.ConfigProto(allow_soft_placement=True, log_device_placement=False))
     tl.layers.initialize_global_variables(sess)
-    tl.files.load_and_assign_npz(sess=sess, name=checkpoint_dir + '/g_srgan.npz', network=net_g)
+    tl.files.load_and_assign_npz(sess=sess, name=args.model_checkpoint, network=net_g)
 
     ###======================= EVALUATION =============================###
     start_time = time.time()
@@ -288,25 +299,19 @@ def evaluate():
 
     print("LR size: %s /  generated HR size: %s" % (size, out.shape))  # LR size: (339, 510, 3) /  gen HR size: (1, 1356, 2040, 3)
     print("[*] save images")
-    tl.vis.save_image(out[0], save_dir + '/valid_gen.png')
-    tl.vis.save_image(valid_lr_img, save_dir + '/valid_lr.png')
-    tl.vis.save_image(valid_hr_img, save_dir + '/valid_hr.png')
+    output_path = os.path.join(output_dir,  '_'.join([image_name, args.basename, 'hr_gen.png']))
+    tl.vis.save_image(out[0],output_path)
 
     out_bicu = scipy.misc.imresize(valid_lr_img, [size[0] * 4, size[1] * 4], interp='bicubic', mode=None)
-    tl.vis.save_image(out_bicu, save_dir + '/valid_bicubic.png')
+    output_path = os.path.join(output_dir, '_'.join([image_name, args.basename, 'bicubic.png']))
+    tl.vis.save_image(out_bicu, output_path)
 
 
 if __name__ == '__main__':
-    import argparse
-    parser = argparse.ArgumentParser()
-
-    parser.add_argument('--mode', type=str, default='srgan', help='srgan, evaluate')
-
-    args = parser.parse_args()
 
     tl.global_flag['mode'] = args.mode
 
-    if tl.global_flag['mode'] == 'srgan':
+    if tl.global_flag['mode'] == 'train':
         train()
     elif tl.global_flag['mode'] == 'evaluate':
         evaluate()
