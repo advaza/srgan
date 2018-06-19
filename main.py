@@ -253,6 +253,7 @@ def train():
             tl.files.save_npz(net_g.all_params, name=checkpoint_dir + '/g_{}.npz'.format(tl.global_flag['mode']), sess=sess)
             tl.files.save_npz(net_d.all_params, name=checkpoint_dir + '/d_{}.npz'.format(tl.global_flag['mode']), sess=sess)
 
+
 def upscale_function(image, model_checkpoint, reuse=False):
     ## create folders to save result images
 
@@ -281,6 +282,7 @@ def upscale_function(image, model_checkpoint, reuse=False):
 
     # image_name = '.'.join(os.path.basename(args.image_path).split('.')[:-1])
 
+    print('reuse = ', reuse)
     valid_lr_img = (image / 127.5) - 1  # rescale to ［－1, 1]
     # print(valid_lr_img.min(), valid_lr_img.max())
 
