@@ -305,7 +305,10 @@ def upscale_function(image, model_checkpoint, reuse=False):
     print("LR size: %s /  generated HR size: %s" % (size, out.shape))  # LR size: (339, 510, 3) /  gen HR size: (1, 1356, 2040, 3)
     print("[*] save images")
 
-    return out[0]
+    output =  out[0]
+    sess.close()
+    tf.reset_default_graph()
+    return output
     # output_path = os.path.join(output_dir,  '_'.join([image_name, args.basename, 'hr_gen.png']))
     # tl.vis.save_image(out[0],output_path)
     #
