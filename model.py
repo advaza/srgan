@@ -22,6 +22,8 @@ def SRGAN_g(t_image, is_train=False, reuse=False):
     g_init = tf.random_normal_initializer(1., 0.02)
     with tf.variable_scope("SRGAN_g", reuse=reuse) as vs:
         # tl.layers.set_name_reuse(reuse) # remove for TL 1.8.0+
+        if reuse:
+            tl.layers.set_name_reuse(True)
         n = InputLayer(t_image, name='in')
         n = Conv2d(n, 64, (3, 3), (1, 1), act=tf.nn.relu, padding='SAME', W_init=w_init, name='n64s1/c')
         temp = n
