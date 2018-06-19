@@ -253,7 +253,7 @@ def train():
             tl.files.save_npz(net_g.all_params, name=checkpoint_dir + '/g_{}.npz'.format(tl.global_flag['mode']), sess=sess)
             tl.files.save_npz(net_d.all_params, name=checkpoint_dir + '/d_{}.npz'.format(tl.global_flag['mode']), sess=sess)
 
-def upscale_function(image, model_checkpoint):
+def upscale_function(image, model_checkpoint, reuse=False):
     ## create folders to save result images
 
     ###====================== PRE-LOAD DATA ===========================###
@@ -288,7 +288,7 @@ def upscale_function(image, model_checkpoint):
     # t_image = tf.placeholder('float32', [None, size[0], size[1], size[2]], name='input_image') # the old version of TL need to specify the image size
     t_image = tf.placeholder('float32', [1, None, None, 3], name='input_image')
 
-    net_g = SRGAN_g(t_image, is_train=False, reuse=False)
+    net_g = SRGAN_g(t_image, is_train=False, reuse=reuse)
 
     ###========================== RESTORE G =============================###
     sess = tf.Session(config=tf.ConfigProto(allow_soft_placement=True, log_device_placement=False))
@@ -325,10 +325,10 @@ def files_in(directory, extensions, recursive=False):
             os.path.splitext(name)[-1].lower() in extensions and '_SRGAN' not in name]
 
 
-def process_image(image, model_checkpoint):
+def process_image(image, model_checkpoint, reuse):
 
     image = image.astype(np.float32)
-    output_image = upscale_function(image, model_checkpoint)
+    output_image = upscale_function(image, model_checkpoint, reuse)
     output_image = (output_image).astype(np.uint8)
     return output_image
 
@@ -359,16 +359,18 @@ def main(in_folder=".", output_dir=None, in_subfolder=None, model_checkpoint=Non
 
         video_files = files_in(folder, extensions=['.mp4'])
         image_files = files_in(folder, extensions=['jpg', 'JPG', 'png', 'jpeg', 'JPEG'])
-
+        reuse=False
         if image_files:
             for image_file in image_files:
 
                 out_file = process_out_file_path(image_file, output_dir)
                 image = cv2.imread(image_file)
                 image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-                out_image = process_image(image, model_checkpoint)
+                out_image = process_image(image, model_checkpoint, reuse)
                 out_image = cv2.cvtColor(out_image, cv2.COLOR_RGB2BGR)
                 cv2.imwrite(out_file, out_image)
+                if not reuse:
+                    reuse = True
 
         if video_files:
             for video_file in video_files:
@@ -381,8 +383,9 @@ def main(in_folder=".", output_dir=None, in_subfolder=None, model_checkpoint=Non
                 bar = progressbar.ProgressBar()
                 for frame in bar(video_reader):
 
-                    writer.append_data(process_image(frame, model_checkpoint))
-
+                    writer.append_data(process_image(frame, model_checkpoint, reuse))
+                    if not reuse:
+                        reuse = True
                 writer.close()
 
 
