@@ -2,24 +2,31 @@
 # -*- coding: utf8 -*-
 
 import os
+import easyargs
+import progressbar
+import imageio
+import glob
+import cv2
+
+
 from model import SRGAN_g, SRGAN_d, Vgg19_simple_api
 from utils import *
 from config import config
 
-from cin.utils.flags import Flags
-
-args = Flags()
-
-args.add_argument('--image_path', type=str, default=None,
-                  help='Path of input low resolution image to upscale.')
-args.add_argument('--output_dir', type=str, default=None,
-                  help='Path to save evaluation results in.')
-args.add_argument('--model_checkpoint', type=str, default=None,
-                  help='Model checkpoint to be restored for evaluation.')
-args.add_argument('--basename', type=str, default='srgan',
-                  help='Basename that will be added to output image')
-args.add_argument('--mode', type=str, default='evaluate',
-                  help='Should be one of {train, evaluate}, default to evaluate.')
+# from cin.utils.flags import Flags
+#
+# args = Flags()
+#
+# args.add_argument('--image_path', type=str, default=None,
+#                   help='Path of input low resolution image to upscale.')
+# args.add_argument('--output_dir', type=str, default=None,
+#                   help='Path to save evaluation results in.')
+# args.add_argument('--model_checkpoint', type=str, default=None,
+#                   help='Model checkpoint to be restored for evaluation.')
+# args.add_argument('--basename', type=str, default='srgan',
+#                   help='Basename that will be added to output image')
+# args.add_argument('--mode', type=str, default='evaluate',
+#                   help='Should be one of {train, evaluate}, default to evaluate.')
 
 
 ###====================== HYPER-PARAMETERS ===========================###
@@ -246,11 +253,9 @@ def train():
             tl.files.save_npz(net_g.all_params, name=checkpoint_dir + '/g_{}.npz'.format(tl.global_flag['mode']), sess=sess)
             tl.files.save_npz(net_d.all_params, name=checkpoint_dir + '/d_{}.npz'.format(tl.global_flag['mode']), sess=sess)
 
-
-def evaluate():
+@easyargs
+def upscale_function(image, model_checkpoint=None):
     ## create folders to save result images
-    output_dir = args.output_dir
-    tl.files.exists_or_mkdir(output_dir)
 
     ###====================== PRE-LOAD DATA ===========================###
     # train_hr_img_list = sorted(tl.files.load_file_list(path=config.TRAIN.hr_img_path, regx='.*.png', printable=False))
@@ -275,10 +280,9 @@ def evaluate():
     # valid_lr_img = valid_lr_imgs[imid]
     # valid_hr_img = valid_hr_imgs[imid]
 
-    image_name = '.'.join(os.path.basename(args.image_path).split('.')[:-1])
+    # image_name = '.'.join(os.path.basename(args.image_path).split('.')[:-1])
 
-    valid_lr_img = get_imgs_fn(args.image_path)  # if you want to test your own image
-    valid_lr_img = (valid_lr_img / 127.5) - 1  # rescale to ［－1, 1]
+    valid_lr_img = (image / 127.5) - 1  # rescale to ［－1, 1]
     # print(valid_lr_img.min(), valid_lr_img.max())
 
     size = valid_lr_img.shape
@@ -290,7 +294,7 @@ def evaluate():
     ###========================== RESTORE G =============================###
     sess = tf.Session(config=tf.ConfigProto(allow_soft_placement=True, log_device_placement=False))
     tl.layers.initialize_global_variables(sess)
-    tl.files.load_and_assign_npz(sess=sess, name=args.model_checkpoint, network=net_g)
+    tl.files.load_and_assign_npz(sess=sess, name=model_checkpoint, network=net_g)
 
     ###======================= EVALUATION =============================###
     start_time = time.time()
@@ -299,21 +303,100 @@ def evaluate():
 
     print("LR size: %s /  generated HR size: %s" % (size, out.shape))  # LR size: (339, 510, 3) /  gen HR size: (1, 1356, 2040, 3)
     print("[*] save images")
-    output_path = os.path.join(output_dir,  '_'.join([image_name, args.basename, 'hr_gen.png']))
-    tl.vis.save_image(out[0],output_path)
 
-    out_bicu = scipy.misc.imresize(valid_lr_img, [size[0] * 4, size[1] * 4], interp='bicubic', mode=None)
-    output_path = os.path.join(output_dir, '_'.join([image_name, args.basename, 'bicubic.png']))
-    tl.vis.save_image(out_bicu, output_path)
+    return out[0]
+    # output_path = os.path.join(output_dir,  '_'.join([image_name, args.basename, 'hr_gen.png']))
+    # tl.vis.save_image(out[0],output_path)
+    #
+    # out_bicu = scipy.misc.imresize(valid_lr_img, [size[0] * 4, size[1] * 4], interp='bicubic', mode=None)
+    # output_path = os.path.join(output_dir, '_'.join([image_name, args.basename, 'bicubic.png']))
+    # tl.vis.save_image(out_bicu, output_path)
+
+
+def folders_in(directory, subfolder, recursive=True):
+    # silly hack to handle file streams which respond only after query
+    _ = glob.glob(os.path.join(directory, '**'), recursive=recursive)
+    ret = [name for name in glob.glob(os.path.join(directory, '**'), recursive=recursive) if
+            os.path.isdir(name)]
+    return ret
+
+
+def files_in(directory, extensions, recursive=False):
+    return [name for name in glob.glob(os.path.join(directory, '**'), recursive=recursive) if
+            os.path.splitext(name)[-1].lower() in extensions and '_SRGAN' not in name]
+
+
+def process_image(image):
+
+    image = image.astype(np.float32)
+    output_image = upscale_function(image)
+    output_image = (output_image).astype(np.uint8)
+    return output_image
+
+
+def process_out_file_path(file_name, output_dir):
+
+    if output_dir is None:
+        output_dir = os.path.abspath(os.path.dirname(file_name))
+
+    tl.files.exists_or_mkdir(output_dir)
+
+    basename = os.path.basename(file_name)
+    extension = basename.split('.')[-1]
+    out_name = basename[:-len(extension)-1] + '_SRGAN' + '.' + extension
+
+    return os.path.join(output_dir, out_name)
+
+
+@easyargs
+def main(in_folder=".", output_dir=None, in_subfolder=None):
+    """
+    Calculate histogram transfer from reference image to a given video
+    :param in_folder: Input folder of folders with video files
+    :return:
+    """
+
+    for folder in sorted(folders_in(in_folder, in_subfolder, recursive=True)):
+
+        video_files = files_in(folder, extensions=['.mp4'])
+        image_files = files_in(folder, extensions=['jpg', 'JPG', 'png', 'jpeg', 'JPEG'])
+
+        if image_files:
+            for image_file in image_files:
+
+                out_file = process_out_file_path(image_file, output_dir)
+                image = cv2.imread(image_file)
+                image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+                out_image = process_image(image)
+                out_image = cv2.cvtColor(out_image, cv2.COLOR_RGB2BGR)
+                cv2.imwrite(out_file, out_image)
+
+        if video_files:
+            for video_file in video_files:
+
+                video_reader = imageio.get_reader(video_file)
+                out_video = process_out_file_path(video_file, output_dir)
+                writer = imageio.get_writer(out_video, fps=video_reader.get_meta_data()['fps'])
+                print('Working on %s' % out_video)
+
+                bar = progressbar.ProgressBar()
+                for frame in bar(video_reader):
+
+                    writer.append_data(process_image(frame))
+
+                writer.close()
 
 
 if __name__ == '__main__':
+    main()
 
-    tl.global_flag['mode'] = args.mode
-
-    if tl.global_flag['mode'] == 'train':
-        train()
-    elif tl.global_flag['mode'] == 'evaluate':
-        evaluate()
-    else:
-        raise Exception("Unknow --mode")
+# if __name__ == '__main__':
+#
+#     tl.global_flag['mode'] = args.mode
+#
+#     if tl.global_flag['mode'] == 'train':
+#         train()
+#     elif tl.global_flag['mode'] == 'evaluate':
+#         evaluate()
+#     else:
+#         raise Exception("Unknow --mode")
