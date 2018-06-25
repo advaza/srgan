@@ -1,6 +1,6 @@
 import logging
 
-logging.basicConfig(level=logging.INFO, format='[TL] %(message)s')
+#logging.basicConfig(level=logging.INFO, format='[TL] %(message)s')
 
 
 def info(fmt, *args):

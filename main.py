@@ -332,9 +332,9 @@ def files_in(directory, extensions, recursive=False):
 
 def process_image(image, model_checkpoint, reuse):
 
-    image = image.astype(np.float32)
     output_image = upscale_function(image, model_checkpoint, reuse)
-    output_image = (output_image).astype(np.uint8)
+    output_image = (output_image + 1.0) * 127.5
+    output_image = output_image.astype(np.uint8)
     return output_image
 
 
@@ -369,11 +369,10 @@ def main(in_folder=".", output_dir=None, in_subfolder=None, model_checkpoint=Non
             for image_file in image_files:
 
                 out_file = process_out_file_path(image_file, output_dir)
-                image = cv2.imread(image_file)
-                image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+                image = get_imgs_fn(image_file)
                 out_image = process_image(image, model_checkpoint, reuse)
-                out_image = cv2.cvtColor(out_image, cv2.COLOR_RGB2BGR)
-                cv2.imwrite(out_file, out_image)
+                tl.vis.save_image(out_image, out_file)
+
                 if not reuse:
                     reuse = True
 
