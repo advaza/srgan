@@ -20,7 +20,7 @@ def SRGAN_g(t_image, is_train=False, reuse=False):
     w_init = tf.random_normal_initializer(stddev=0.02)
     b_init = None  # tf.constant_initializer(value=0.0)
     g_init = tf.random_normal_initializer(1., 0.02)
-    with tf.variable_scope("SRGAN_g", reuse=reuse) as vs:
+    with tf.variable_scope("SRGAN_g", reuse=tf.AUTO_REUSE) as vs:
         # tl.layers.set_name_reuse(reuse) # remove for TL 1.8.0+
         if reuse:
             tl.layers.set_name_reuse(True)

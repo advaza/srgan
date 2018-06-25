@@ -282,7 +282,7 @@ def upscale_function(image, model_checkpoint, reuse=False):
 
     # image_name = '.'.join(os.path.basename(args.image_path).split('.')[:-1])
 
-    print('reuse = ', reuse)
+    # print('reuse = ', reuse)
     valid_lr_img = (image / 127.5) - 1  # rescale to ［－1, 1]
     # print(valid_lr_img.min(), valid_lr_img.max())
 
@@ -300,12 +300,12 @@ def upscale_function(image, model_checkpoint, reuse=False):
     ###======================= EVALUATION =============================###
     start_time = time.time()
     out = sess.run(net_g.outputs, {t_image: [valid_lr_img]})
-    print("took: %4.4fs" % (time.time() - start_time))
+    # print("took: %4.4fs" % (time.time() - start_time))
+    #
+    # print("LR size: %s /  generated HR size: %s" % (size, out.shape))  # LR size: (339, 510, 3) /  gen HR size: (1, 1356, 2040, 3)
+    # print("[*] save images")
 
-    print("LR size: %s /  generated HR size: %s" % (size, out.shape))  # LR size: (339, 510, 3) /  gen HR size: (1, 1356, 2040, 3)
-    print("[*] save images")
-
-    output =  out[0]
+    output = out[0]
     sess.close()
     tf.reset_default_graph()
     return output
@@ -363,7 +363,7 @@ def main(in_folder=".", output_dir=None, in_subfolder=None, model_checkpoint=Non
     for folder in sorted(folders_in(in_folder, in_subfolder, recursive=True)):
 
         video_files = files_in(folder, extensions=['.mp4'])
-        image_files = files_in(folder, extensions=['jpg', 'JPG', 'png', 'jpeg', 'JPEG'])
+        image_files = files_in(folder, extensions=['.jpg', '.JPG', '.png', '.jpeg', '.JPEG'])
         reuse=False
         if image_files:
             for image_file in image_files:
